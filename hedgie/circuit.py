@@ -1,5 +1,6 @@
-class CircuitOpenException(Exception):
-    pass
+def circuit_breaker_factory(group_name):
+    group = group_factory(group_name)
+    group.circuit_breaker
 
 
 class CircuitBreaker(object):
@@ -12,6 +13,10 @@ class CircuitBreaker(object):
         self.failure_rate_threshold = failure_rate_threshold
         self.calls = 0
         self.errors = 0
+
+    @property
+    def allow_request(self):
+        return not self.is_open
 
     @property
     def failure_rate(self):
@@ -33,3 +38,7 @@ class CircuitBreaker(object):
 
         if exc is not None:
             self.errors += 1
+
+
+class CircuitOpenException(Exception):
+    pass
