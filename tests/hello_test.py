@@ -18,6 +18,10 @@ def test_hello_should_pass_naive_introspection():
     assert hello.__doc__ == 'Say hello.'
 
 
+def test_hello_should_be_a_hedgie_command():
+    assert isinstance(hello, hedgie.Command)
+
+
 def test_hello_should_return_greeting_if_not_should_fail_when_called():
     result = hello('world', False)
     assert result == 'Hello, world'

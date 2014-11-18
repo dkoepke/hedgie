@@ -2,6 +2,8 @@ from collections import namedtuple
 import functools
 import sys
 
+from .circuit import CircuitBreaker, CircuitOpenException
+
 
 class RuntimeException(Exception):
     pass
@@ -40,30 +42,37 @@ class CommandInvocation(_CommandInvocation):
 
 
 class Command(object):
-    def __init__(self, service_call, group=None, fallback=None):
+    def __init__(self, service_call, group=None, fallback=None, circuit_breaker=None):
         super(Command, self).__init__()
         self.service_call = service_call
         self.group = group or get_qualname(service_call)
         self.fallback = fallback
+        self.circuit_breaker = circuit_breaker or CircuitBreaker()
 
     def __call__(self, *args, **kwargs):
         # return self.queue(*args, **kwargs).result()
         try:
-            return self.service_call(*args, **kwargs)
+            if self.circuit_breaker.is_open:
+                raise CircuitOpenException()
+
+            result = self.service_call(*args, **kwargs)
+
+            self.circuit_breaker.call(None)
+            return result
         except OperationalException as exc:
             # Skip fallback and re-raise
             exc.reraise(sys.exc_info()[2])
-        except Exception as exc:  # Everything else has fallback, etc.
+        except Exception as exc:
             invocation = CommandInvocation(
                 command=self, args=args, kwargs=kwargs, exception=exc)
+
+            if not isinstance(exc, CircuitOpenException):
+                self.circuit_breaker.call(exc)
 
             if self.fallback is not None:
                 return self.fallback(invocation)
 
             raise  # No fallback, so we have to re-raise
-
-    def fallback(self):
-        raise OperationalException(NotImplementedError)
 
 
 def get_qualname(fn):
